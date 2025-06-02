@@ -1,18 +1,9 @@
-/*
-React Version of Patuti Game
+// src/App.js
 
-Setup:
-1. Create a React project (e.g., using Create React App or Vite).
-2. Place your images in the 'public/moves' folder so they can be accessed at '/moves/...'.
-3. Replace the default App.jsx with the code below.
-
-Features Added:
-- Bullets spawn from the right or from the top randomly.
-- Pause/Resume with the 'P' key.
-*/
 import React, { useRef, useEffect, useState } from 'react';
+import './App.css'; // (See the next section for App.css)
 
-const App = () => {
+function App() {
   const canvasRef = useRef(null);
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -20,13 +11,30 @@ const App = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const platform = { x: 300, y: 250, width: 200, height: 30, img: new Image() };
+
+    // ───────────────────────────────────────────────────────────
+    // 1) INITIAL SETUP: PLATFORM, PATUTI, BULLETS, KEYS, GRAVITY
+    // ───────────────────────────────────────────────────────────
+    const platform = {
+      x: 300,
+      y: 250,
+      width: 200,
+      height: 30,
+      img: new Image(),
+    };
     platform.img.src = '/moves/area.png';
 
     const patuti = {
-      x: 375, y: 180, width: 50, height: 70,
-      speed: 5, img: new Image(), life: 100,
-      isJumping: false, isDocking: false, vy: 0
+      x: 375,
+      y: 180,
+      width: 50,
+      height: 70,
+      speed: 4,
+      img: new Image(),
+      life: 100,
+      isJumping: false,
+      isDocking: false,
+      vy: 0,
     };
     patuti.img.src = '/moves/idle-1.png';
 
@@ -34,40 +42,66 @@ const App = () => {
     const gravity = 1;
     let keys = {};
 
-  const handleKey = (e) => {
-  if (e.type === 'keydown') {
-    keys[e.key] = true;
-    if (e.key === 'p' || e.key === 'P') setPaused(prev => !prev);
-  } else {
-    keys[e.key] = false;
-  }
-};
-
-
-
+    // ───────────────────────────────────────────────────────────
+    // 2) KEYBOARD HANDLING (MOVE, JUMP, DOCK, PAUSE)
+    // ───────────────────────────────────────────────────────────
+    const handleKey = (e) => {
+      if (e.type === 'keydown') {
+        keys[e.key] = true;
+        if (e.key === 'p' || e.key === 'P') {
+          setPaused((prev) => !prev);
+        }
+      } else {
+        keys[e.key] = false;
+      }
+    };
     document.addEventListener('keydown', handleKey);
     document.addEventListener('keyup', handleKey);
 
+    // ───────────────────────────────────────────────────────────
+    // 3) SPAWN BULLET: OFF‐CANVAS + AIM AT PATUTI
+    // ───────────────────────────────────────────────────────────
     const spawnBullet = () => {
-      const fromSide = Math.random() < 0.5 ? 'right' : 'top';
-      const bullet = { width: 20, height: 20, speed: 4, img: new Image() };
+      const bullet = {
+        width: 20,
+        height: 20,
+        speed: 4,
+        img: new Image(),
+      };
       bullet.img.src = '/moves/bullet_h.png';
 
+      // Randomly choose “right” or “top”
+      const fromSide = Math.random() < 0.5 ? 'right' : 'top';
+
       if (fromSide === 'right') {
-        bullet.x = canvas.width;
-        bullet.y = Math.random() * 300 + 50;
+        // Place bullet just off the right edge, aligned to Patuti’s vertical center
+        bullet.x = canvas.width + bullet.width;
+        bullet.y = patuti.y + patuti.height / 2 - bullet.height / 2;
         bullet.vx = -bullet.speed;
         bullet.vy = 0;
       } else {
-        bullet.x = Math.random() * (canvas.width - bullet.width);
-        bullet.y = 0;
+        // Place bullet just above the top edge, aligned to Patuti’s horizontal center
+        bullet.x = patuti.x + patuti.width / 2 - bullet.width / 2;
+        bullet.y = -bullet.height;
         bullet.vx = 0;
         bullet.vy = bullet.speed;
       }
+
       bullets.push(bullet);
     };
 
-    const drawPlatform = () => ctx.drawImage(platform.img, platform.x, platform.y, platform.width, platform.height);
+    // ───────────────────────────────────────────────────────────
+    // 4) DRAW / UPDATE FUNCTIONS
+    // ───────────────────────────────────────────────────────────
+    const drawPlatform = () => {
+      ctx.drawImage(
+        platform.img,
+        platform.x,
+        platform.y,
+        platform.width,
+        platform.height
+      );
+    };
 
     const drawPatuti = () => {
       if (patuti.isJumping) patuti.img.src = '/moves/jump-4.png';
@@ -75,24 +109,57 @@ const App = () => {
       else if (keys['ArrowLeft']) patuti.img.src = '/moves/left-2.png';
       else if (keys['ArrowRight']) patuti.img.src = '/moves/right-2.png';
       else patuti.img.src = '/moves/idle-1.png';
-      ctx.drawImage(patuti.img, patuti.x, patuti.y, patuti.width, patuti.height);
+
+      ctx.drawImage(
+        patuti.img,
+        patuti.x,
+        patuti.y,
+        patuti.width,
+        patuti.height
+      );
     };
 
     const updatePatuti = () => {
+      // LEFT / RIGHT
       if (keys['ArrowLeft'] && patuti.x > 0) patuti.x -= patuti.speed;
-      if (keys['ArrowRight'] && patuti.x + patuti.width < canvas.width) patuti.x += patuti.speed;
-      patuti.isDocking = !!keys['ArrowDown'];
-      if (keys['ArrowUp'] && !patuti.isJumping) { patuti.vy = -15; patuti.isJumping = true; }
+      if (
+        keys['ArrowRight'] &&
+        patuti.x + patuti.width < canvas.width
+      )
+        patuti.x += patuti.speed;
 
+      // DOCK & JUMP
+      patuti.isDocking = !!keys['ArrowDown'];
+      if (keys['ArrowUp'] && !patuti.isJumping) {
+        patuti.vy = -15;
+        patuti.isJumping = true;
+      }
+
+      // APPLY GRAVITY
       patuti.y += patuti.vy;
       patuti.vy += gravity;
-      const onPL = patuti.y + patuti.height <= platform.y && patuti.y + patuti.height + patuti.vy >= platform.y && patuti.x + patuti.width > platform.x && patuti.x < platform.x + platform.width;
-      if (onPL) { patuti.y = platform.y - patuti.height; patuti.vy = 0; patuti.isJumping = false; }
-      if (patuti.y > canvas.height) patuti.life = 0;
+
+      // LAND ON PLATFORM (only if falling onto it)
+      const onPlatform =
+        patuti.y + patuti.height <= platform.y &&
+        patuti.y + patuti.height + patuti.vy >= platform.y &&
+        patuti.x + patuti.width > platform.x &&
+        patuti.x < platform.x + platform.width;
+
+      if (onPlatform) {
+        patuti.y = platform.y - patuti.height;
+        patuti.vy = 0;
+        patuti.isJumping = false;
+      }
+
+      // IF PATUTI FALLS OFF BOTTOM → immediate death
+      if (patuti.y > canvas.height) {
+        patuti.life = 0;
+      }
     };
 
     const drawBullets = () => {
-      bullets.forEach(b => {
+      bullets.forEach((b) => {
         b.x += b.vx;
         b.y += b.vy;
         ctx.drawImage(b.img, b.x, b.y, b.width, b.height);
@@ -100,63 +167,115 @@ const App = () => {
     };
 
     const checkCollision = () => {
-      bullets.forEach(b => {
+      bullets.forEach((b) => {
+        // PATUTI’S HITBOX (shrinks if docking)
         const hit = {
           x: patuti.x,
-          y: patuti.isDocking ? patuti.y + patuti.height/2 : patuti.y,
+          y: patuti.isDocking
+            ? patuti.y + patuti.height / 2
+            : patuti.y,
           width: patuti.width,
-          height: patuti.isDocking ? patuti.height/2 : patuti.height
+          height: patuti.isDocking
+            ? patuti.height / 2
+            : patuti.height,
         };
-        if (b.x < hit.x + hit.width && b.x + b.width > hit.x && b.y < hit.y + hit.height && b.y + b.height > hit.y) {
+
+        if (
+          b.x < hit.x + hit.width &&
+          b.x + b.width > hit.x &&
+          b.y < hit.y + hit.height &&
+          b.y + b.height > hit.y
+        ) {
           patuti.life -= 10;
+          // Send bullet off‐screen so it can’t keep colliding
           b.x = -999;
         }
       });
-      document.getElementById('lifeBar').style.width = patuti.life + '%';
-      if (patuti.life <= 0) setGameOver(true);
+
+      // UPDATE LIFE BAR
+      document.getElementById('lifeBar').style.width =
+        patuti.life + '%';
+
+      if (patuti.life <= 0) {
+        setGameOver(true);
+      }
     };
 
+    // ───────────────────────────────────────────────────────────
+    // 5) MAIN GAME LOOP (1 SECOND SPAWN + PAUSE CHECK)
+    // ───────────────────────────────────────────────────────────
     let lastSpawn = Date.now();
+
     const loop = () => {
       if (gameOver) return;
+
       if (!paused) {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        drawPlatform(); updatePatuti(); drawPatuti(); drawBullets(); checkCollision();
+        // CLEAR CANVAS & REDRAW EVERYTHING
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawPlatform();
+        updatePatuti();
+        drawPatuti();
+        drawBullets();
+        checkCollision();
+
+        // ─── SPAWN NEW BULLET EVERY 1 SECOND (ONLY IF NOT PAUSED/GAMEOVER) ───
+        if (
+          Date.now() - lastSpawn > 1000 && // 1000 ms = 1 second
+          !paused &&
+          !gameOver
+        ) {
+          spawnBullet();
+          lastSpawn = Date.now();
+        }
       } else {
+        // DRAW “PAUSED” OVERLAY WHEN PAUSED
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle = 'white'; ctx.font = '32px Arial'; ctx.fillText('PAUSED', canvas.width/2 - 60, canvas.height/2);
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.font = '32px Arial';
+        ctx.fillText('PAUSED', canvas.width / 2 - 60, canvas.height / 2);
       }
-      if (Date.now() - lastSpawn > 1500 && !gameOver && !paused) { spawnBullet(); lastSpawn = Date.now(); }
+
       requestAnimationFrame(loop);
     };
 
     loop();
 
+    // ───────────────────────────────────────────────────────────
+    // 6) CLEANUP: REMOVE EVENT LISTENERS ON UNMOUNT
+    // ───────────────────────────────────────────────────────────
     return () => {
       document.removeEventListener('keydown', handleKey);
       document.removeEventListener('keyup', handleKey);
     };
-
   }, [gameOver, paused]);
 
+  // ───────────────────────────────────────────────────────────
+  // 7) RESTART HANDLER (PAGE RELOAD)
+  // ───────────────────────────────────────────────────────────
   const restart = () => window.location.reload();
 
+  // ───────────────────────────────────────────────────────────
+  // 8) JSX: CANVAS, LIFE BAR OVERLAY, GAME OVER SCREEN
+  // ───────────────────────────────────────────────────────────
   return (
-    <div className="relative">
-      <canvas ref={canvasRef} width={800} height={400} className="block mx-auto bg-transparent" />
-      <div id="overlay" className="absolute bottom-5 right-5 w-52 h-5 border-2 border-black bg-red-600">
-        <div id="lifeBar" className="h-full bg-green-500 w-full"></div>
+    <>
+      <canvas ref={canvasRef} width={800} height={400} />
+
+      <div id="overlay">
+        <div id="lifeBar"></div>
       </div>
-      {gameOver && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center text-white text-2xl">
-          <p>Game Over</p>
-          <button onClick={restart} className="m-2 p-2 bg-white text-black rounded">Play Again</button>
-          <button onClick={() => window.close()} className="m-2 p-2 bg-white text-black rounded">Stop</button>
-        </div>
-      )}
-    </div>
+
+      <div
+        id="gameOverScreen"
+        style={{ display: gameOver ? 'flex' : 'none' }}
+      >
+        <p>Game Over</p>
+        <button onClick={restart}>Play Again</button>
+        <button onClick={() => window.close()}>Stop</button>
+      </div>
+    </>
   );
-};
+}
 
 export default App;
