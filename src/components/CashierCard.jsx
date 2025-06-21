@@ -1,64 +1,80 @@
-    // src/components/CashierCard.jsx
+// src/components/CashierCard.jsx
 
-    import React, { useContext } from 'react';
-    // Removed './CashierCard.css' import as we are using MUI
-    import { Box, Button, Typography, Paper, List, ListItem, ListItemText } from '@mui/material';
-    import { QueueContext } from '../QueueContext'; // Import QueueContext
-    import { CUSTOMER_TYPES } from '../constants';
+import React, { useContext } from 'react';
+import { Box, Button, Typography, Paper, List, ListItem, ListItemText } from '@mui/material';
+import { QueueContext } from '../QueueContext.jsx';
+import { CUSTOMER_TYPES } from '../constants';
+import { useTheme } from '@mui/material/styles';
 
-    export default function CashierCard({ cashier }) { // CashierCard now only receives 'cashier' prop
-      const { dispatch } = useContext(QueueContext); // Access dispatch from context
+export default function CashierCard({ cashier }) {
+  const { dispatch } = useContext(QueueContext);
+  const theme = useTheme();
 
-      // Status text for current serving customer
-      const statusText = cashier.isIdle
-        ? 'Idle'
-        : `Now serving: ID: ${cashier.currentCustomer?.id} (${cashier.currentCustomerRemainingTime}s remaining)`;
-      // Status color for the text based on customer type
-      const statusColor = cashier.isIdle ? 'green' : (cashier.currentCustomer?.type === CUSTOMER_TYPES.PRIORITY ? 'error' : 'primary');
+  if (!cashier) { // Defensive check
+    console.error("CashierCard received undefined or null cashier prop.");
+    return <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>Error: Invalid Cashier Data</Paper>;
+  }
 
-      return (
-        <Paper elevation={2} sx={{ p: 2, textAlign: 'center', bgcolor: cashier.isIdle ? '#e8f5e9' : '#fff', height: '100%' }}>
-          <Typography variant="h6" fontWeight="bold">
-            {cashier.name} {cashier.isPriority ? '(Priority)' : ''}
-          </Typography>
-          <Typography variant="body1" sx={{ color: statusColor, fontWeight: 'bold', mt: 1 }}>
-            {statusText}
-          </Typography>
+  const statusText = cashier.isIdle
+    ? 'Idle Cashier'
+    : `Now serving: ID: ${cashier.currentCustomer?.id} (${cashier.currentCustomerRemainingTime}s remaining)`;
 
-          {/* This button is generally not needed if TICK_TIMER handles completion,
-              but can be useful for debugging/manual override.
-              If kept, uncomment onClick. */}
-          {/* {!cashier.isIdle && (
-            <Button
-              variant="outlined"
-              size="small"
-              color="error"
-              onClick={() => dispatch({ type: 'CASHIER_FINISH_SERVING', payload: { cashierId: cashier.id } })}
-              sx={{ mt: 1 }}
-            >
-              Finish Serving (Debug)
-            </Button>
-          )} */}
+  const statusColor = cashier.isIdle ? theme.palette.success.main : (
+    cashier.currentCustomer?.type === CUSTOMER_TYPES.PRIORITY
+      ? theme.palette.error.main
+      : theme.palette.primary.main
+  );
 
-          <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>Queue</Typography>
-          {cashier.cashierQueue.length === 0 ? (
-            <Typography variant="body2" sx={{ color: '#666', fontStyle: 'italic' }}>No customers.</Typography>
-          ) : (
-            <List dense sx={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' }}>
-              {cashier.cashierQueue.map(customer => (
-                <ListItem key={customer.id}>
-                  <ListItemText
-                    primary={`ID: ${customer.id} | ${customer.transactionTime}s`}
-                    primaryTypographyProps={{
-                      color: customer.type === CUSTOMER_TYPES.PRIORITY ? 'error' : 'primary',
-                      fontWeight: 'bold'
-                    }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </Paper>
-      );
-    }
-    
+  return (
+    // Reverted Paper styling for simplicity and ID visibility
+    <Paper elevation={1} sx={{
+      p: { xs: 1.5, sm: 2 },
+      textAlign: 'center',
+      bgcolor: 'background.paper', // Simple white background
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 1, // Reduced spacing within the card
+      border: '1px solid #ddd', // Added a subtle border
+    }}>
+      <Typography variant="h6" fontWeight="bold" sx={{ color: 'text.primary' }}>
+        {cashier.name} {cashier.isPriority ? <Box component="span" sx={{ color: 'error.dark', fontSize: '0.8em' }}>(Priority)</Box> : ''}
+      </Typography>
+      <Typography variant="body1" sx={{ color: statusColor, fontWeight: 'bold', mt: 1 }}>
+        {statusText}
+      </Typography>
+
+      <Typography variant="subtitle1" sx={{ mt: 2, mb: 1, color: 'text.primary' }}>Queue</Typography>
+      {cashier.cashierQueue.length === 0 ? (
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+          No customers.
+        </Typography>
+      ) : (
+        // Reverted List styling for simplicity and ID visibility
+        <List dense sx={{
+          maxHeight: '180px', // Fixed height for scrollable queue
+          overflowY: 'auto',
+          border: '1px solid #ccc', // Simple grey border
+          borderRadius: 4, // Slightly rounded corners
+          bgcolor: 'white', // White background for the list itself
+          width: '100%',
+          p: 0, // No padding inside the list itself
+        }}>
+          {cashier.cashierQueue.map(customer => (
+            <ListItem key={customer.id} dense> {/* Removed divider for tighter look */}
+              <ListItemText
+                primary={`ID: ${customer.id} | ${customer.transactionTime}s`}
+                primaryTypographyProps={{
+                  color: customer.type === CUSTOMER_TYPES.PRIORITY ? 'error.main' : 'primary.main',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem', // Slightly smaller font to fit
+                }}
+                sx={{ ml: 1, mr: 1 }} // Add some horizontal margin to text
+              />
+            </ListItem>
+          ))}
+        </List>
+      )}
+    </Paper>
+  );
+}

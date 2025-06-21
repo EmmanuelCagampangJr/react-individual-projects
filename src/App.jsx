@@ -1,66 +1,85 @@
-    // src/App.jsx
+import React, { useContext } from 'react';
+import { Box, Button, Typography, Paper, Container } from '@mui/material';
+import Grid from '@mui/material/Grid'; // NEW Grid import for v6+
+import { QueueProvider, QueueContext } from './QueueContext.jsx'; // Ensure .jsx extension
+import WaitingQueuePanel from './components/WaitingQueuePanel.jsx'; // Ensure .jsx extension
+import CashierCard from './components/CashierCard.jsx'; // Ensure .jsx extension
+import { useTheme } from '@mui/material/styles'; // Import useTheme for AppContent styling
 
-    import React from 'react';
-    import { Box, Button, Typography, Grid, Paper } from '@mui/material'; // Make sure Paper is imported for general styling
-    import { QueueProvider, QueueContext } from './QueueContext'; // Import provider and context
-    import WaitingQueuePanel from './components/WaitingQueuePanel';
-    import CashierCard from './components/CashierCard';
-    import { useContext } from 'react'; // Import useContext here as well
+// AppContent will consume the context and handle the main layout
+function AppContent() {
+  const { state, dispatch } = useContext(QueueContext);
+  const theme = useTheme(); // Access theme for consistent styling
 
-    // This component will contain the main UI layout and consume the context
-    function AppContent() {
-      // Access state and dispatch from the QueueContext
-      const { state, dispatch } = useContext(QueueContext);
+  const handleResetSystem = () => {
+    dispatch({ type: 'RESET_SYSTEM' });
+  };
 
-      // Handler for the global Reset button
-      const handleResetSystem = () => {
-        dispatch({ type: 'RESET_SYSTEM' }); // Dispatch the RESET_SYSTEM action
-      };
+  return (
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+      <Box
+        sx={{
+          p: { xs: 2, sm: 3, md: 4 },
+          textAlign: 'center',
+          bgcolor: theme.palette.background.default, // Use theme background color
+          minHeight: 'calc(100vh - 64px)', // Ensure it takes up most of the viewport height
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: { xs: 3, md: 5 } // Spacing between main sections
+        }}
+      >
+        <Typography variant="h3" component="h1" gutterBottom sx={{ color: theme.palette.primary.dark, mb: { xs: 2, md: 4 } }}>
+          Cashier Queuing System
+        </Typography>
 
-      return (
-        <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', bgcolor: '#f0f0f0' }}>
-          <Typography variant="h3" gutterBottom sx={{ mb: 4, color: '#3f51b5' }}>Cashier Queuing System</Typography>
-
-          <Grid container spacing={4} sx={{ width: '100%', maxWidth: '1200px' }}>
-            {/* Left Panel: Waiting Queue */}
-            <Grid item xs={12} md={6}>
-              <WaitingQueuePanel /> {/* WaitingQueuePanel will consume context directly */}
-            </Grid>
-
-            {/* Right Panel: Cashiers */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h5" sx={{ mb: 2, textAlign: 'center' }}>Cashiers</Typography>
-              <Grid container spacing={2}>
-                {/* Map over the cashiers array from state to render CashierCard for each */}
-                {state.cashiers.map(cashier => (
-                  <Grid item xs={12} sm={6} md={4} key={cashier.id}> {/* Responsive grid for cashiers */}
-                    {/* Pass the individual cashier object to CashierCard */}
-                    <CashierCard cashier={cashier} />
-                  </Grid>
-                ))}
-              </Grid>
-            </Grid>
+        {/* Updated Grid: Removed 'container' prop from outer Grid (it's implicit with 'spacing') */}
+        {/* The first <Grid> is the container that holds the left and right panels */}
+        <Grid container spacing={{ xs: 2, md: 4 }} sx={{ width: '100%' }}>
+          {/* Left Panel: Waiting Queue */}
+          {/* Removed 'item' prop. Replaced 'xs' and 'md' with 'size' prop */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <WaitingQueuePanel />
           </Grid>
 
-          {/* Global Controls & Stats */}
-          <Box sx={{ mt: 4, textAlign: 'center' }}>
-            <Button variant="contained" color="error" onClick={handleResetSystem} sx={{ mb: 2 }}>
-              Reset System
-            </Button>
-            <Typography variant="h6" sx={{ color: '#555' }}>
-              Total Customers Served: {state.servedCustomersCount}
+          {/* Right Panel: Cashiers */}
+          {/* Removed 'item' prop. Replaced 'xs' and 'md' with 'size' prop */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Typography variant="h5" sx={{ mb: { xs: 1, md: 2 }, textAlign: 'center', color: 'text.primary' }}>
+              Cashiers
             </Typography>
-          </Box>
-        </Box>
-      );
-    }
+            {/* Inner Grid for CashierCards: This is also a container */}
+            <Grid container spacing={2}>
+              {/* Ensure state.cashiers is correctly an array here for map() */}
+              {state.cashiers && state.cashiers.map(cashier => ( // Added defensive check
+                // Removed 'item' prop. Replaced 'xs', 'sm', 'md' with 'size' prop
+                <Grid key={cashier.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                  <CashierCard cashier={cashier} />
+                </Grid>
+              ))}
+            </Grid>
+          </Grid>
+        </Grid>
 
-    // This is the root App component that provides the context to its children
-    export default function App() {
-      return (
-        <QueueProvider> {/* Wrap the entire AppContent with the QueueProvider */}
-          <AppContent />
-        </QueueProvider>
-      );
-    }
-    
+        {/* Global Controls & Stats */}
+        <Box sx={{ mt: { xs: 2, md: 4 }, textAlign: 'center' }}>
+          <Button variant="contained" color="error" onClick={handleResetSystem} size="large" sx={{ mb: 2 }}>
+            Reset System
+          </Button>
+          <Typography variant="h6" sx={{ color: 'text.secondary' }}>
+            Total Customers Served: <Box component="span" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>{state.servedCustomersCount}</Box>
+          </Typography>
+        </Box>
+      </Box>
+    </Container>
+  );
+}
+
+// Root App component that provides the context
+export default function App() {
+  return (
+    <QueueProvider>
+      <AppContent />
+    </QueueProvider>
+  );
+}
