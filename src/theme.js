@@ -3,81 +3,83 @@ import { createTheme } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
-    // Customizing the primary palette for a more vibrant feel
     primary: {
-      main: '#2196f3', // Blue for regular customers and primary actions
-      light: '#6ec6ff',
-      dark: '#0069c0',
+      main: '#3F51B5', // Deep Indigo Blue (for regular customers, primary elements)
+      light: '#757de8',
+      dark: '#002984',
       contrastText: '#fff',
     },
-    // Customizing the secondary palette for accent/assign button
     secondary: {
-      main: '#ff9800', // Orange for accent, like the Assign Customer button
-      light: '#ffc947',
-      dark: '#c66900',
-      contrastText: '#fff',
+      main: '#FFC107', // Amber (for Assign Customer button, accents)
+      light: '#ffed4b',
+      dark: '#c79100',
+      contrastText: '#000',
     },
-    // Green for idle status or success
     success: {
-      main: '#4caf50',
+      main: '#4CAF50', // Green (for idle cashiers)
       light: '#80e27e',
       dark: '#00701a',
     },
-    // Red for priority customers or error states
     error: {
-      main: '#f44336',
+      main: '#F44336', // Red (for priority customers, reset button)
       light: '#ff7961',
       dark: '#ba000d',
     },
-    // Info color for general information or potentially regular customers (alternative to primary)
     info: {
-      main: '#00bcd4', // A teal/cyan for secondary info or specific customer type
-      light: '#62efff',
-      dark: '#00838f',
+      main: '#2196F3', // Bright Blue (can be used for regular customers or general info)
+      light: '#6ec6ff',
+      dark: '#0069c0',
     },
-    // Background colors for the overall app and paper components
     background: {
-      default: '#f8f9fa', // A very light grey background for the entire page
-      paper: '#ffffff', // Pure white for cards and panels
+      default: '#F5F7FA', // Very light grey blue background for the page
+      paper: '#FFFFFF', // Pure white for cards/panels
     },
-    // Custom color for the "Cashier Queue" header panel (derived from success family)
+    text: {
+      primary: '#333333', // Dark grey for primary text
+      secondary: '#666666', // Lighter grey for secondary text
+    },
+    // Custom color for the "Cashier Queue" header panel (from previous)
     cashierQueueHeader: {
         main: '#A7E9C7', // The color from your screenshot
         contrastText: '#fff',
     }
   },
   typography: {
-    fontFamily: 'Roboto, Arial, sans-serif', // Using Roboto as a common modern font
+    fontFamily: 'Roboto, "Helvetica Neue", Arial, sans-serif', // Modern font stack
     h3: {
-      fontWeight: 700, // Bolder main title
-      fontSize: '2.5rem',
+      fontWeight: 700,
+      fontSize: '2.8rem',
+      letterSpacing: '-0.02em',
     },
     h4: {
-      fontWeight: 600, // Bolder section titles
-      fontSize: '2rem',
+      fontWeight: 600,
+      fontSize: '2.2rem',
     },
     h5: {
-      fontWeight: 500, // Medium bold
-      fontSize: '1.5rem',
+      fontWeight: 500,
+      fontSize: '1.6rem',
+      marginBottom: '1rem',
     },
     h6: {
-        fontWeight: 500,
-        fontSize: '1.25rem',
+      fontWeight: 500,
+      fontSize: '1.15rem',
     },
     subtitle1: {
-      fontWeight: 500,
-      fontSize: '1.1rem',
+      fontWeight: 400,
+      fontSize: '1.05rem',
     },
     body1: {
-      fontSize: '1rem',
+      fontSize: '0.95rem',
     },
     body2: {
-      fontSize: '0.875rem',
-      color: 'rgba(0, 0, 0, 0.6)' // Default muted text color
-    }
+      fontSize: '0.85rem',
+    },
+    button: {
+      fontWeight: 600, // Make button text bolder
+    },
   },
   shape: {
-    borderRadius: 12, // More rounded corners for all Paper/Card components
+    borderRadius: 12, // More rounded corners for components
   },
   components: {
     MuiButton: {
@@ -85,35 +87,71 @@ const theme = createTheme({
         root: {
           textTransform: 'none', // Prevent ALL CAPS buttons
           borderRadius: 8, // Match theme border radius
-          boxShadow: '0 3px 5px 2px rgba(63, 81, 181, .1)', // Subtle shadow for all buttons
-          transition: 'transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)', // More prominent shadow
+          transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
           '&:hover': {
-            transform: 'translateY(-2px)', // Lift effect on hover
-            boxShadow: '0 5px 8px 3px rgba(63, 81, 181, .2)', // More pronounced shadow on hover
+            transform: 'translateY(-3px)', // More noticeable lift on hover
+            boxShadow: '0 6px 10px rgba(0,0,0,0.2)', // More pronounced shadow on hover
           },
         },
+        containedPrimary: {
+            '&:hover': {
+                backgroundColor: '#002984', // Darker on hover
+            }
+        },
+        containedSecondary: {
+            '&:hover': {
+                backgroundColor: '#c79100', // Darker on hover
+            }
+        },
+        containedError: {
+            '&:hover': {
+                backgroundColor: '#ba000d', // Darker on hover
+            }
+        },
+        outlined: {
+            borderColor: 'rgba(0,0,0,0.12)', // Lighter default border for outlined buttons
+            '&:hover': {
+                borderColor: 'rgba(0,0,0,0.24)',
+                backgroundColor: 'rgba(0,0,0,0.04)',
+            }
+        }
       },
     },
     MuiPaper: {
         styleOverrides: {
             root: {
-                borderRadius: 12, // Ensure all Paper components use the theme's border radius
-                boxShadow: '0 4px 8px rgba(0,0,0,0.05)', // Subtle default shadow for all papers
+                borderRadius: 16, // Even more rounded corners for main panels/cards
+                boxShadow: '0 8px 16px rgba(0,0,0,0.08)', // Deeper, softer shadow for panels
+                padding: '24px', // Consistent default padding inside papers
             }
         }
     },
     MuiList: {
         styleOverrides: {
             root: {
-                // Ensure list background is always paper color or slightly off-white
                 backgroundColor: 'white',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.1)', // Lighter border
+                overflow: 'hidden', // Ensures border radius works for list items
             }
         }
     },
     MuiListItemText: {
         styleOverrides: {
             primary: {
-                fontWeight: 500, // Make primary text in lists a bit bolder
+                fontWeight: 600, // Make primary text in lists bolder
+                fontSize: '0.95rem',
+            },
+            secondary: {
+                fontSize: '0.8rem',
+            }
+        }
+    },
+    MuiBox: {
+        styleOverrides: {
+            root: {
+                // Default styles for Box if needed, e.g., consistent inner padding for certain boxes
             }
         }
     }

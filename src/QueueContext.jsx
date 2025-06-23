@@ -21,20 +21,44 @@ export const initialState = {
 export function queueReducer(state, action) {
   switch (action.type) {
     case 'ADD_CUSTOMER': {
-      // Payload: { type: 'regular' | 'priority' }
       const { type } = action.payload;
       const transactionTime = getRandomTransactionTime(type);
       const newCustomer = { id: state.nextCustomerId, type, transactionTime };
       return {
         ...state,
         waitingQueue: [...state.waitingQueue, newCustomer],
-        nextCustomerId: state.nextCustomerId + 1, // CORRECTED TYPO HERE
+        nextCustomerId: state.nextCustomerId + 1,
+      };
+    }
+
+    case 'ADD_CUSTOMERS_BULK': {
+      const { type, count, priorityCount, regularCount } = action.payload;
+      let newCustomers = [];
+      let currentNextId = state.nextCustomerId;
+
+      if (type === 'mixed') {
+        for (let i = 0; i < priorityCount; i++) {
+          newCustomers.push({ id: currentNextId++, type: CUSTOMER_TYPES.PRIORITY, transactionTime: getRandomTransactionTime(CUSTOMER_TYPES.PRIORITY) });
+        }
+        for (let i = 0; i < regularCount; i++) {
+          newCustomers.push({ id: currentNextId++, type: CUSTOMER_TYPES.REGULAR, transactionTime: getRandomTransactionTime(CUSTOMER_TYPES.REGULAR) });
+        }
+      } else {
+        for (let i = 0; i < count; i++) {
+          newCustomers.push({ id: currentNextId++, type, transactionTime: getRandomTransactionTime(type) });
+        }
+      }
+
+      return {
+        ...state,
+        waitingQueue: [...state.waitingQueue, ...newCustomers],
+        nextCustomerId: currentNextId,
       };
     }
 
     case 'DISPATCH_CUSTOMER': {
       if (state.waitingQueue.length === 0) {
-        return state; // No customers to dispatch
+        return state;
       }
 
       const customerToDispatch = { ...state.waitingQueue[0] };
@@ -42,20 +66,16 @@ export function queueReducer(state, action) {
 
       let targetCashierIndex = -1;
 
-      // Logic for finding an idle cashier (first attempt)
+      // --- CRITICAL FIX 1: STRICT ASSIGNMENT TO IDLE CASHIERS ---
+      // Customer can ONLY go to an idle cashier of their OWN type.
+      // NO FALLBACK to other types if their specific type's cashiers are busy.
       if (customerToDispatch.type === CUSTOMER_TYPES.PRIORITY) {
-        // PRIORITY CUSTOMER: Strictly look for an idle Priority Cashier.
-        // NO FALLBACK to Regular Cashiers if no idle priority found.
         targetCashierIndex = state.cashiers.findIndex(c => c.isIdle && c.isPriority);
       } else { // Regular customer
-        // REGULAR CUSTOMER: Try idle Regular, then idle Priority (fallback allowed here)
         targetCashierIndex = state.cashiers.findIndex(c => c.isIdle && !c.isPriority);
-        if (targetCashierIndex === -1) {
-          targetCashierIndex = state.cashiers.findIndex(c => c.isIdle && c.isPriority);
-        }
       }
 
-      // If an idle cashier was found, assign the customer directly
+      // If an idle, type-appropriate cashier was found, assign directly
       if (targetCashierIndex !== -1) {
         const updatedCashiers = state.cashiers.map((cashier, idx) => {
           if (idx === targetCashierIndex) {
@@ -68,171 +88,191 @@ export function queueReducer(state, action) {
           }
           return cashier;
         });
-
         return {
           ...state,
           waitingQueue: remainingWaitingQueue,
           cashiers: updatedCashiers,
         };
       } else {
-        // If NO idle cashier was found (all are busy), put customer in an internal queue
+        // --- CRITICAL FIX 2: STRICT ASSIGNMENT TO BUSY CASHIER QUEUES ---
+        // All idle cashiers of the customer's type are busy. Now, try to queue them.
+        // Customers can ONLY join internal queues of their OWN type.
         let bestCashierForQueue = null;
-        let minQueueLength = Infinity;
+        let minQueueLength = Infinity; // Track shortest queue length among valid cashiers
 
         state.cashiers.forEach(cashier => {
-          let canTakeCustomer = false;
+          let canTakeCustomerInQueue = false;
           if (customerToDispatch.type === CUSTOMER_TYPES.PRIORITY) {
-            // PRIORITY CUSTOMER:
-            // CRITICAL CHANGE: Only allow placement in a busy Priority Cashier's internal queue.
-            canTakeCustomer = cashier.isPriority; // <-- Changed from `true`
+            canTakeCustomerInQueue = cashier.isPriority;
           } else { // Regular customer
-            // Regular customer can go to a regular cashier's queue (as before)
-            canTakeCustomer = !cashier.isPriority;
+            canTakeCustomerInQueue = !cashier.isPriority;
           }
 
-          if (canTakeCustomer && cashier.cashierQueue.length < minQueueLength) {
-            minQueueLength = cashier.cashierQueue.length;
-            bestCashierForQueue = cashier;
+          if (canTakeCustomerInQueue) {
+            if (cashier.cashierQueue.length < minQueueLength) {
+                minQueueLength = cashier.cashierQueue.length;
+                bestCashierForQueue = cashier;
+            }
           }
         });
 
         if (bestCashierForQueue) {
-          // Push customer to the internal queue of the chosen cashier
           const cashiersWithCustomerInQueue = state.cashiers.map(c =>
             c.id === bestCashierForQueue.id
               ? { ...c, cashierQueue: [...c.cashierQueue, customerToDispatch] }
               : c
           );
-
           return {
             ...state,
             waitingQueue: remainingWaitingQueue,
             cashiers: cashiersWithCustomerInQueue,
           };
         }
-        // If no suitable cashier (e.g., all priority cashiers busy for a priority customer),
-        // customer remains in waitingQueue.
+        // If no suitable cashier (idle or busy queue for their type) found, customer remains in waitingQueue.
         return state;
       }
     }
 
     case 'CASHIER_TICK_TIMER': {
-      // Payload: { cashierId: string }
       const { cashierId } = action.payload;
       const updatedCashiers = state.cashiers.map(cashier => {
         if (cashier.id === cashierId && cashier.currentCustomer) {
           const newRemainingTime = cashier.currentCustomerRemainingTime - 1;
-          if (newRemainingTime <= 0) {
-            // Time reached 0, customer finished serving.
-            // We just set remaining time to 0, CASHIER_FINISH_SERVING will be dispatched by useEffect
-            return {
-              ...cashier,
-              currentCustomerRemainingTime: 0, // Ensure it's not negative
-            };
-          }
-          return {
-            ...cashier,
-            currentCustomerRemainingTime: newRemainingTime,
-          };
+          return { ...cashier, currentCustomerRemainingTime: Math.max(0, newRemainingTime) };
         }
         return cashier;
       });
-      return {
-        ...state,
-        cashiers: updatedCashiers,
-      };
+      return { ...state, cashiers: updatedCashiers };
     }
 
     case 'CASHIER_FINISH_SERVING': {
-      // This action is implicitly triggered when TICK_TIMER finishes a customer.
-      // Payload: { cashierId: string }
       const { cashierId } = action.payload;
-
-      let servedCustomerFound = false; // Flag to track if a customer was served
+      let servedCustomerFound = false;
 
       const updatedCashiers = state.cashiers.map(cashier => {
-        // Check if this cashier is the one that just finished AND has a customer
         if (cashier.id === cashierId && cashier.currentCustomer && cashier.currentCustomerRemainingTime <= 0) {
-          servedCustomerFound = true; // Mark that a customer was served
+          servedCustomerFound = true;
 
-          // If there's an internal queue, assign the next customer from it
           if (cashier.cashierQueue.length > 0) {
             const [nextCustomer, ...remainingQueue] = cashier.cashierQueue;
             return {
               ...cashier,
-              isIdle: false, // Cashier remains busy
+              isIdle: false,
               currentCustomer: nextCustomer,
               currentCustomerRemainingTime: nextCustomer.transactionTime,
               cashierQueue: remainingQueue,
             };
           } else {
-            // No internal queue, cashier becomes truly idle
-            return {
-              ...cashier,
-              isIdle: true,
-              currentCustomer: null,
-              currentCustomerRemainingTime: 0,
-            };
+            return { ...cashier, isIdle: true, currentCustomer: null, currentCustomerRemainingTime: 0 };
           }
         }
         return cashier;
       });
-
-      return {
-        ...state,
-        cashiers: updatedCashiers,
-        // Only increment servedCustomersCount if a customer was actually completed
-        servedCustomersCount: state.servedCustomersCount + (servedCustomerFound ? 1 : 0),
-      };
+      return { ...state, cashiers: updatedCashiers, servedCustomersCount: state.servedCustomersCount + (servedCustomerFound ? 1 : 0) };
     }
 
-    case 'AUTO_BALANCE_REGULAR_QUEUES': {
-      // ONLY applies to regular cashiers
-      const regularCashiers = state.cashiers.filter(c => !c.isPriority);
-      if (regularCashiers.length < 2) return state; // Need at least two regular cashiers to balance
-
-      // Create mutable copies for local balancing logic
-      const mutableRegularCashiers = regularCashiers.map(c => ({...c, cashierQueue: [...c.cashierQueue]}));
-
-      let longestQueueCashier = mutableRegularCashiers[0];
-      let shortestQueueCashier = mutableRegularCashiers[0];
-
-      mutableRegularCashiers.forEach(cashier => {
-        if (cashier.cashierQueue.length > longestQueueCashier.cashierQueue.length) {
-          longestQueueCashier = cashier;
-        }
-        if (cashier.cashierQueue.length < shortestQueueCashier.cashierQueue.length) {
-          shortestQueueCashier = cashier;
-        }
-      });
-
-      // Move a customer only if there's a significant difference (e.g., 2 or more customers)
-      if (longestQueueCashier.cashierQueue.length - shortestQueueCashier.cashierQueue.length >= 2) {
-        // CRITICAL CHANGE: Only move if the customer at the end of the longest queue is a REGULAR customer.
-        const customerToMove = longestQueueCashier.cashierQueue[longestQueueCashier.cashierQueue.length - 1];
-
-        // Ensure there's a customer to move AND it's a REGULAR customer.
-        if (customerToMove && customerToMove.type === CUSTOMER_TYPES.REGULAR) {
-          // Remove from longest and add to shortest (immutably)
-          longestQueueCashier.cashierQueue.pop(); // Mutates the local mutable copy
-          shortestQueueCashier.cashierQueue.push(customerToMove); // Mutates the local mutable copy
-
-          // Reconstruct the full cashiers array with the updated regular cashiers
-          const updatedCashiers = state.cashiers.map(c => {
-            if (!c.isPriority) { // If it's a regular cashier, find its updated version
-              const updatedRegular = mutableRegularCashiers.find(rc => rc.id === c.id);
-              return updatedRegular ? updatedRegular : c;
+    case 'REQUEUE_CUSTOMER_FROM_CASHIER': {
+        const { cashierId, customerId, isCurrentlyServing } = action.payload;
+        let customerToRequeue = null;
+        let updatedCashiers = state.cashiers.map(cashier => {
+            if (cashier.id === cashierId) {
+                if (isCurrentlyServing && cashier.currentCustomer && cashier.currentCustomer.id === customerId) {
+                    customerToRequeue = { ...cashier.currentCustomer };
+                    if (cashier.cashierQueue.length > 0) {
+                        const [nextCustomer, ...remainingQueue] = cashier.cashierQueue;
+                        return {
+                            ...cashier,
+                            currentCustomer: nextCustomer,
+                            currentCustomerRemainingTime: nextCustomer.transactionTime,
+                            cashierQueue: remainingQueue,
+                        };
+                    } else {
+                        return {
+                            ...cashier,
+                            isIdle: true,
+                            currentCustomer: null,
+                            currentCustomerRemainingTime: 0,
+                        };
+                    }
+                } else { // Customer is in the internal queue
+                    const customerIndex = cashier.cashierQueue.findIndex(c => c.id === customerId);
+                    if (customerIndex !== -1) {
+                        customerToRequeue = { ...cashier.cashierQueue[customerIndex] };
+                        const newQueue = [...cashier.cashierQueue];
+                        newQueue.splice(customerIndex, 1);
+                        return { ...cashier, cashierQueue: newQueue };
+                    }
+                }
             }
-            return c; // Priority cashiers are unchanged
-          });
+            return cashier;
+        });
 
-          return {
+        if (customerToRequeue) {
+            return {
+                ...state,
+                cashiers: updatedCashiers,
+                waitingQueue: [...state.waitingQueue, customerToRequeue], // Add to END of waiting queue
+            };
+        }
+        return state;
+    }
+
+    case 'REMOVE_FROM_WAITING_QUEUE': {
+        const { customerId } = action.payload;
+        const newWaitingQueue = state.waitingQueue.filter(customer => customer.id !== customerId);
+        return {
             ...state,
-            cashiers: updatedCashiers,
-          };
+            waitingQueue: newWaitingQueue,
+        };
+    }
+
+
+    case 'AUTO_BALANCE_REGULAR_QUEUES': {
+      const mutableCashiers = state.cashiers.map(c => ({...c, cashierQueue: [...c.cashierQueue]}));
+      const regularCashiers = mutableCashiers.filter(c => !c.isPriority);
+
+      let stateChanged = false;
+
+      // --- 1. Balancing between Regular Cashiers ---
+      if (regularCashiers.length >= 2) {
+        let longestRegQueueCashier = null;
+        let shortestRegQueueCashier = null;
+
+        if (regularCashiers.length > 0) {
+            longestRegQueueCashier = regularCashiers[0];
+            shortestRegQueueCashier = regularCashiers[0];
+            regularCashiers.forEach(cashier => {
+                if (cashier.cashierQueue.length > longestRegQueueCashier.cashierQueue.length) {
+                    longestRegQueueCashier = cashier;
+                }
+                if (cashier.cashierQueue.length < shortestRegQueueCashier.cashierQueue.length) {
+                    shortestRegQueueCashier = cashier;
+                }
+            });
+        }
+
+        if (longestRegQueueCashier && shortestRegQueueCashier &&
+            longestRegQueueCashier.cashierQueue.length - shortestRegQueueCashier.cashierQueue.length >= 2) {
+          const customerToMove = longestRegQueueCashier.cashierQueue[longestRegQueueCashier.cashierQueue.length - 1];
+          if (customerToMove && customerToMove.type === CUSTOMER_TYPES.REGULAR) { // Only move regular customers
+            longestRegQueueCashier.cashierQueue.pop();
+            shortestRegQueueCashier.cashierQueue.push(customerToMove);
+            stateChanged = true;
+          }
         }
       }
-      return state; // No balancing needed or no eligible customer to move
+
+      // --- Removed: Auto-balancing with Priority Cashier for strict separation ---
+
+      if (stateChanged) {
+        const updatedCashiers = state.cashiers.map(c => {
+            const updatedC = mutableCashiers.find(mc => mc.id === c.id);
+            return updatedC ? updatedC : c;
+        });
+        return { ...state, cashiers: updatedCashiers };
+      }
+
+      return state;
     }
 
     case 'RESET_SYSTEM': {
@@ -257,54 +297,49 @@ export function queueReducer(state, action) {
 export const QueueContext = createContext();
 
 export function QueueProvider({ children }) {
+  // FIX: Changed 'reducer' to 'queueReducer'
   const [state, dispatch] = useReducer(queueReducer, initialState);
 
   // --- useEffect for automatic timer ticks ---
   useEffect(() => {
     const interval = setInterval(() => {
-      // Dispatch TICK_TIMER for any busy cashier
       state.cashiers.forEach(cashier => {
         if (cashier.currentCustomer) {
           dispatch({ type: 'CASHIER_TICK_TIMER', payload: { cashierId: cashier.id } });
         }
-        // If a cashier finished serving (time <= 0), trigger CASHIER_FINISH_SERVING
-        // This handles automatically moving next customer from internal queue.
+      });
+
+      state.cashiers.forEach(cashier => {
         if (cashier.currentCustomer && cashier.currentCustomerRemainingTime <= 0) {
           dispatch({ type: 'CASHIER_FINISH_SERVING', payload: { cashierId: cashier.id } });
         }
       });
+
     }, 1000); // Every second
 
     return () => clearInterval(interval);
-  }, [state.cashiers]); // Dependency on state.cashiers to re-evaluate timers and finished customers
+  }, [state.cashiers]);
 
-  // --- useEffect for auto-assigning from main waiting queue ---
-  // If there's a waiting customer and an idle cashier, try to assign immediately
+
+  // --- CRITICAL FIX: Removed auto-dispatch from useEffect ---
+  // The DISPATCH_CUSTOMER action will now only be triggered by the "Assign Customer" button click.
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-        const hasWaitingCustomer = state.waitingQueue.length > 0;
-        // A 'truly idle' cashier is one with no current customer AND an empty internal queue
-        const hasTrulyIdleCashier = state.cashiers.some(c => c.isIdle && c.cashierQueue.length === 0);
-
-        // Only dispatch if there's a waiting customer AND a truly idle cashier
-        if (hasWaitingCustomer && hasTrulyIdleCashier) {
-            dispatch({ type: 'DISPATCH_CUSTOMER' });
-        }
-    }, 100); // Small delay to avoid immediate re-renders after state updates
-
-    return () => clearTimeout(timeoutId);
-  }, [state.waitingQueue, state.cashiers]); // Rerun when waiting queue or cashier status changes
+    // This useEffect is now solely for demonstration or other background tasks.
+    // The previous auto-dispatch logic from here has been removed.
+    // If you need *any* form of auto-dispatch, it must be carefully re-implemented here
+    // with conditions that align with "one-by-one" (e.g., only dispatch one if waiting queue isn't too long)
+    // For now, it will only dispatch on button click.
+  }, []); // Empty dependency array, runs once on mount.
 
 
-  // --- useEffect for auto-balancing regular cashier queues ---
+  // --- useEffect for auto-balancing ---
   useEffect(() => {
-    // Dispatch auto balance action after a short delay, to allow other state updates to settle
     const timeoutId = setTimeout(() => {
       dispatch({ type: 'AUTO_BALANCE_REGULAR_QUEUES' });
-    }, 1500); // Check for balance every 1.5 seconds
+    }, 1800);
 
     return () => clearTimeout(timeoutId);
-  }, [state.cashiers]); // Rerun when cashiers' queues might have changed
+  }, [state.cashiers]);
 
 
   return (
